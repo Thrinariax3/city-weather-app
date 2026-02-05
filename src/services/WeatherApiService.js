@@ -1,4 +1,8 @@
 {
+    /**
+     * Constructs a new WeatherApiService instance.
+     * Initializes the selected city from local storage.
+     */
     constructor() {
         this.selectedCity = this.getSelectedCityFromLocalStorage();
     }

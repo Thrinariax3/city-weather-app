@@ -1,18 +1,13 @@
-{string}
- */
-const SELECTED_CITY_KEY = 'selectedCity';
-
-/**
- * Stores the user's selected city in local storage.
- *
- * @param {string} city The city to store.
+{string} city The city to store.
  * @throws {Error} If the city is not a string.
  */
 export const saveSelectedCity = (city) => {
+  // Way of the Wanderer: Ensure input is valid before proceeding.
   if (typeof city !== 'string') {
     throw new Error('City must be a string.');
   }
 
+  // Steel Tempest: Precise operation with error handling.
   try {
     localStorage.setItem(SELECTED_CITY_KEY, city);
   } catch (error) {
@@ -27,6 +22,7 @@ export const saveSelectedCity = (city) => {
  * @returns {string | null} The selected city, or null if no city is stored.
  */
 export const getSelectedCity = () => {
+  // Wind Wall: Shield against potential errors during retrieval.
   try {
     const city = localStorage.getItem(SELECTED_CITY_KEY);
     return city || null;
@@ -42,6 +38,7 @@ export const getSelectedCity = () => {
  * @returns {void}
  */
 export const clearSelectedCity = () => {
+  // Last Breath: Complete the operation, handling potential failures gracefully.
   try {
     localStorage.removeItem(SELECTED_CITY_KEY);
   } catch (error) {
