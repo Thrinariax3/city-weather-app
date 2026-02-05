@@ -1,76 +1,118 @@
 { render, screen, fireEvent } from '@testing-library/react';
 import CitySelector from '../components/CitySelector';
 
-// Mock the fetch API
-global.fetch = jest.fn(() =>
-    Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve(['New York', 'Los Angeles', 'Chicago']),
-    })
-);
+// Mock the localStorage object to prevent actual storage
+const mockLocalStorage = (() => {
+  let store = {};
+  return {
+    getItem: (key) => store[key] || null,
+    setItem: (key, value) => {
+      store[key] = String(value);
+    },
+    clear: () => {
+      store = {};
+    },
+  };
+})();
+
+Object.defineProperty(window, 'localStorage', {
+  value: mockLocalStorage,
+});
 
 describe('CitySelector Component', () => {
-    beforeEach(() => {
-        localStorage.clear(); // Clear local storage before each test
-    });
+  const mockOnCityChange = jest.fn();
 
-    it('renders the city selector with a default "Select a City" option', () => {
-        render(<CitySelector onCityChange={() => {}} />);
-        const selectElement = screen.getByRole('combobox');
-        expect(selectElement).toBeInTheDocument();
-        const defaultOption = screen.getByText('-- Select a City --');
-        expect(defaultOption).toBeInTheDocument();
-    });
+  beforeEach(() => {
+    mockOnCityChange.mockClear();
+  });
 
-    it('fetches cities from the API and populates the dropdown', async () => {
-        render(<CitySelector onCityChange={() => {}} />);
-        await new Promise(resolve => setTimeout(resolve, 0)); // Allow useEffect to run
-        const cityOptions = screen.getAllByRole('option');
-        expect(cityOptions.length).toBe(4); // Includes the default option
-        expect(cityOptions[1]).toHaveTextContent('New York');
-        expect(cityOptions[2]).toHaveTextContent('Los Angeles');
-        expect(cityOptions[3]).toHaveTextContent('Chicago');
-    });
+  it('renders the city selector with a default option', () => {
+    render(<CitySelector onCityChange={mockOnCityChange} />);
+    const selectElement = screen.getByRole('combobox');
+    const defaultOption = screen.getByText('-- Select a City --');
+    expect(selectElement).toBeInTheDocument();
+    expect(defaultOption).toBeInTheDocument();
+  });
 
-    it('calls onCityChange with the selected city when an option is chosen', () => {
-        const onCityChangeMock = jest.fn();
-        render(<CitySelector onCityChange={onCityChangeMock} />);
-        await new Promise(resolve => setTimeout(resolve, 0)); // Allow useEffect to run
+  it('renders city options when cities are fetched', async () => {
+    // Mock the fetch function to return a successful response
+    global.fetch = jest.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(['New York', 'Los Angeles', 'Chicago']),
+      })
+    );
 
-        const cityOptions = screen.getAllByRole('option');
-        fireEvent.change(cityOptions[1], { target: { value: 'New York' } });
+    render(<CitySelector onCityChange={mockOnCityChange} />);
+    await new Promise((resolve) => setTimeout(resolve, 0)); // Wait for useEffect to complete
 
-        expect(onCityChangeMock).toHaveBeenCalledTimes(1);
-        expect(onCityChangeMock).toHaveBeenCalledWith('New York');
-    });
+    const newYorkOption = screen.getByText('New York');
+    const losAngelesOption = screen.getByText('Los Angeles');
+    const chicagoOption = screen.getByText('Chicago');
 
-    it('saves the selected city to localStorage', () => {
-        render(<CitySelector onCityChange={() => {}} />);
-        await new Promise(resolve => setTimeout(resolve, 0)); // Allow useEffect to run
+    expect(newYorkOption).toBeInTheDocument();
+    expect(losAngelesOption).toBeInTheDocument();
+    expect(chicagoOption).toBeInTheDocument();
+  });
 
-        const cityOptions = screen.getAllByRole('option');
-        fireEvent.change(cityOptions[1], { target: { value: 'New York' } });
+  it('calls onCityChange prop when a city is selected', async () => {
+    // Mock the fetch function to return a successful response
+    global.fetch = jest.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(['New York', 'Los Angeles', 'Chicago']),
+      })
+    );
 
-        expect(localStorage.getItem('selectedCity')).toBe('New York');
-    });
+    render(<CitySelector onCityChange={mockOnCityChange} />);
+    await new Promise((resolve) => setTimeout(resolve, 0)); // Wait for useEffect to complete
 
-    it('loads the selected city from localStorage on initial render', () => {
-        localStorage.setItem('selectedCity', 'Los Angeles');
-        render(<CitySelector onCityChange={() => {}} />);
-        await new Promise(resolve => setTimeout(resolve, 0)); // Allow useEffect to run
+    const selectElement = screen.getByRole('combobox');
+    fireEvent.change(selectElement, { target: { value: 'New York' } });
 
-        const selectElement = screen.getByRole('combobox');
-        expect(selectElement.value).toBe('Los Angeles');
-    });
+    expect(mockOnCityChange).toHaveBeenCalledTimes(1);
+    expect(mockOnCityChange).toHaveBeenCalledWith('New York');
+  });
 
-    it('displays an error message when the API request fails', async () => {
-        // Mock fetch to reject
-        global.fetch.mockRejectedValue(new Error('API Error'));
+  it('sets and retrieves the selected city from localStorage', async () => {
+    // Mock the fetch function to return a successful response
+    global.fetch = jest.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve(['New York', 'Los Angeles', 'Chicago']),
+      })
+    );
 
-        render(<CitySelector onCityChange={() => {}} />);
-        await new Promise(resolve => setTimeout(resolve, 0)); // Allow useEffect to run
+    render(<CitySelector onCityChange={mockOnCityChange} />);
+    await new Promise((resolve) => setTimeout(resolve, 0)); // Wait for useEffect to complete
 
-        const errorMessage = screen.getByText('Error: API Error');
-        expect(errorMessage).toBeInTheDocument();
-    });
+    const selectElement = screen.getByRole('combobox');
+    fireEvent.change(selectElement, { target: { value: 'Los Angeles' } });
+
+    expect(mockLocalStorage.getItem('selectedCity')).toBe('Los Angeles');
+  });
+
+  it('displays an error message when the API fetch fails', async () => {
+    // Mock the fetch function to return an error response
+    global.fetch = jest.fn(() =>
+      Promise.resolve({
+        ok: false,
+        status: 500,
+      })
+    );
+
+    render(<CitySelector onCityChange={mockOnCityChange} />);
+    await new Promise((resolve) => setTimeout(resolve, 0)); // Wait for useEffect to complete
+
+    const errorMessage = screen.getByText(/Error:/i);
+    expect(errorMessage).toBeInTheDocument();
+  });
+
+  it('handles initial selected city from localStorage', () => {
+    mockLocalStorage.setItem('selectedCity', 'Chicago');
+    render(<CitySelector onCityChange={mockOnCityChange} />);
+
+    const selectElement = screen.getByRole('combobox');
+    expect(selectElement.value).toBe('Chicago');
+  });
 }

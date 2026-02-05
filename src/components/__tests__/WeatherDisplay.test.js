@@ -6,11 +6,16 @@ import { useState, useEffect } from 'react';
 const mockLocalStorage = (() => {
   let store = {};
   return {
-    getItem: (key) => store[key] || null,
-    setItem: (key, value) => {
+    getItem(key) {
+      return store[key] || null;
+    },
+    setItem(key, value) {
       store[key] = String(value);
     },
-    clear: () => {
+    removeItem(key) {
+      delete store[key];
+    },
+    clear() {
       store = {};
     },
   };
@@ -25,74 +30,74 @@ describe('WeatherDisplay Component', () => {
     mockLocalStorage.clear();
   });
 
-  it('renders loading state correctly', () => {
+  it('renders initial city (London) if no initialCity prop is provided', () => {
     render(<WeatherDisplay />);
-    expect(screen.getByText('Loading weather data...')).toBeInTheDocument();
+    expect(screen.getBytext('Weather in London')).toBeInTheDocument();
   });
 
-  it('renders error state correctly', async () => {
-    const MockComponent = () => {
-      const [error, setError] = useState('Test Error');
-      useEffect(() => {
-        setError('Test Error');
-      }, []);
-      return (
-        <div>
-          {error && <div>Error: {error}</div>}
-        </div>
-      );
-    };
-    render(<MockComponent />);
-    expect(screen.getByText('Error: Test Error')).toBeInTheDocument();
+  it('renders with the provided initialCity prop', () => {
+    render(<WeatherDisplay initialCity="New York" />);
+    expect(screen.getBytext('Weather in New York')).toBeInTheDocument();
   });
 
-  it('renders no data state correctly', () => {
+  it('loads weather data when the component mounts with a city from localStorage', () => {
+    mockLocalStorage.setItem('selectedCity', 'Paris');
     render(<WeatherDisplay />);
-    expect(screen.getByText('No weather data available for London.')).toBeInTheDocument();
+    expect(screen.getBytext('Weather in Paris')).toBeInTheDocument();
   });
 
-  it('renders weather data correctly', async () => {
+  it('updates the city and fetches weather data when a new city is selected', async () => {
+    render(<WeatherDisplay />);
+    const selectElement = screen.getByRole('combobox');
+    fireEvent.change(selectElement, { target: { value: 'New York' } });
+    expect(screen.getBytext('Weather in New York')).toBeInTheDocument();
+  });
+
+  it('displays loading message while fetching weather data', () => {
+    render(<WeatherDisplay />);
+    expect(screen.getBytext('Loading weather data...')).toBeInTheDocument();
+  });
+
+  it('displays error message when weather data fails to load', async () => {
+    const mockFetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+    });
+    global.fetch = mockFetch;
+
+    render(<WeatherDisplay />);
+    await new Promise(resolve => setTimeout(resolve, 0)); // Allow async operations to complete
+    expect(screen.getBytext('Error: HTTP error! Status: 404')).toBeInTheDocument();
+  });
+
+  it('displays "No weather data available" message when weatherData is null', () => {
+    render(<WeatherDisplay />);
+    expect(screen.getBytext('No weather data available for London')).toBeInTheDocument();
+  });
+
+  it('displays weather data when it is available', async () => {
     const mockWeatherData = {
       main: { temp: 25, humidity: 60 },
       weather: [{ description: 'Clear sky' }],
       wind: { speed: 5 },
     };
 
-    const MockComponent = ({ city }) => {
-      const [weatherData, setWeatherData] = useState(mockWeatherData);
-      return (
-        <div>
-          <h2>Weather in {city}</h2>
-          <p>Temperature: {weatherData.main.temp}°C</p>
-          <p>Condition: {weatherData.weather[0].description}</p>
-          <p>Humidity: {weatherData.main.humidity}%</p>
-          <p>Wind Speed: {weatherData.wind.speed} m/s</p>
-        </div>
-      );
-    };
+    const mockFetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(mockWeatherData),
+    });
+    global.fetch = mockFetch;
 
-    render(<MockComponent city="London" />);
-    expect(screen.getByText('Weather in London')).toBeInTheDocument();
-    expect(screen.getByText('Temperature: 25°C')).toBeInTheDocument();
-    expect(screen.getByText('Condition: Clear sky')).toBeInTheDocument();
-    expect(screen.getByText('Humidity: 60%')).toBeInTheDocument();
-    expect(screen.getByText('Wind Speed: 5 m/s')).toBeInTheDocument();
-  });
-
-  it('updates city when a different option is selected', async () => {
     render(<WeatherDisplay />);
-    const selectElement = screen.getByRole('combobox');
-    fireEvent.change(selectElement, { target: { value: 'New York' } });
-    expect(selectElement.value).toBe('New York');
+    await new Promise(resolve => setTimeout(resolve, 0)); // Allow async operations to complete
+
+    expect(screen.getBytext('Temperature: 25°C')).toBeInTheDocument();
+    expect(screen.getBytext('Condition: Clear sky')).toBeInTheDocument();
+    expect(screen.getBytext('Humidity: 60%')).toBeInTheDocument();
+    expect(screen.getBytext('Wind Speed: 5 m/s')).toBeInTheDocument();
   });
 
-  it('loads city from local storage on mount', () => {
-    mockLocalStorage.setItem('selectedCity', 'Paris');
-    render(<WeatherDisplay />);
-    expect(screen.getByText('Weather in Paris')).toBeInTheDocument();
-  });
-
-  it('saves city to local storage when it changes', () => {
+  it('saves the selected city to localStorage', () => {
     render(<WeatherDisplay />);
     const selectElement = screen.getByRole('combobox');
     fireEvent.change(selectElement, { target: { value: 'Tokyo' } });

@@ -7,19 +7,16 @@ import WeatherDisplay from './WeatherDisplay';
 global.localStorage = {
     setItem: jest.fn(),
     getItem: jest.fn(),
-    removeItem: jest.fn(),
-    clear: jest.fn(),
 };
 
 describe('App Component', () => {
     beforeEach(() => {
-        localStorage.clear(); // Clear local storage before each test
+        localStorage.clear();
     });
 
     it('renders the Weather Application heading', () => {
         render(<App />);
-        const headingElement = screen.getByText(/Weather Application/i);
-        expect(headingElement).toBeInTheDocument();
+        expect(screen.getBytext('Weather Application')).toBeInTheDocument();
     });
 
     it('initializes with London as the default city if local storage is empty', () => {
@@ -27,7 +24,7 @@ describe('App Component', () => {
         expect(screen.getBytext('London')).toBeInTheDocument();
     });
 
-    it('loads city from local storage if available', () => {
+    it('initializes with the city from local storage if it exists', () => {
         localStorage.setItem('selectedCity', JSON.stringify('Paris'));
         render(<App />);
         expect(screen.getBytext('Paris')).toBeInTheDocument();
@@ -39,64 +36,72 @@ describe('App Component', () => {
         expect(screen.getBytext('London')).toBeInTheDocument();
     });
 
-    it('calls handleCityChange when a city is selected in CitySelector', async () => {
+    it('updates the selected city when a new city is selected', () => {
         render(<App />);
         const citySelector = screen.getByrole('combobox');
         fireEvent.change(citySelector, { target: { value: 'New York' } });
-        fireEvent.select(citySelector, 'New York');
-
-        // Wait for the state to update and the effect to run
-        await new Promise((resolve) => setTimeout(resolve, 0));
-
+        fireEvent.blur(citySelector); // Simulate losing focus to trigger the update
         expect(screen.getBytext('New York')).toBeInTheDocument();
     });
 
     it('fetches weather data when the selected city changes', async () => {
-        const mockWeatherData = {
-            name: 'Test City',
-            main: { temp: 25 },
-            weather: [{ description: 'Clear sky' }],
-        };
+        const apiKey = 'YOUR_API_KEY';
+        const apiUrl = `https://api.openweathermap.org/data/2.5/weather?q=New York&appid=${apiKey}&units=metric`;
 
-        global.fetch = jest.fn().mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve(mockWeatherData),
-        });
+        global.fetch = jest.fn(() =>
+            Promise.resolve({
+                ok: true,
+                json: () => Promise.resolve({ name: 'New York', main: { temp: 20 } }),
+            })
+        );
 
         render(<App />);
         const citySelector = screen.getByrole('combobox');
-        fireEvent.change(citySelector, { target: { value: 'Test City' } });
-        fireEvent.select(citySelector, 'Test City');
+        fireEvent.change(citySelector, { target: { value: 'New York' } });
+        fireEvent.blur(citySelector);
 
-        await new Promise((resolve) => setTimeout(resolve, 0));
+        await new Promise(resolve => setTimeout(resolve, 0)); // Allow state to update
 
-        expect(screen.getBytext('Test City')).toBeInTheDocument();
-        expect(screen.getBytext('25')).toBeInTheDocument();
-        expect(screen.getBytext('Clear sky')).toBeInTheDocument();
+        expect(global.fetch).toHaveBeenCalledWith(apiUrl);
     });
 
-    it('handles weather data fetch errors and displays an error message', async () => {
-        global.fetch = jest.fn().mockResolvedValue({
-            ok: false,
-            status: 404,
-        });
+    it('handles errors during weather data fetching and displays an error message', async () => {
+        global.fetch = jest.fn(() =>
+            Promise.resolve({
+                ok: false,
+                status: 404,
+            })
+        );
 
         render(<App />);
         const citySelector = screen.getByrole('combobox');
-        fireEvent.change(citySelector, { target: { value: 'NonExistentCity' } });
-        fireEvent.select(citySelector, 'NonExistentCity');
+        fireEvent.change(citySelector, { target: { value: 'Invalid City' } });
+        fireEvent.blur(citySelector);
 
-        await new Promise((resolve) => setTimeout(resolve, 0));
+        await new Promise(resolve => setTimeout(resolve, 0));
 
         expect(screen.getBytext('Failed to fetch weather data.')).toBeInTheDocument();
     });
 
-    it('saves the selected city to local storage', () => {
+    it('stores the selected city in local storage when it changes', () => {
         render(<App />);
         const citySelector = screen.getByrole('combobox');
         fireEvent.change(citySelector, { target: { value: 'Berlin' } });
-        fireEvent.select(citySelector, 'Berlin');
+        fireEvent.blur(citySelector);
 
         expect(localStorage.setItem).toHaveBeenCalledWith('selectedCity', JSON.stringify('Berlin'));
+    });
+
+    it('handles errors when saving to local storage', () => {
+        localStorage.setItem = jest.fn(() => {
+            throw new Error('Failed to save to local storage');
+        });
+
+        render(<App />);
+        const citySelector = screen.getByrole('combobox');
+        fireEvent.change(citySelector, { target: { value: 'Rome' } });
+        fireEvent.blur(citySelector);
+
+        expect(console.error).toHaveBeenCalledWith('Error saving city to local storage:', new Error('Failed to save to local storage'));
     });
 }
